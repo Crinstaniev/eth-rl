@@ -103,6 +103,9 @@ class Validator(object):
             base reward of the validator
         """
         effective_balance = self.get_effective_balance()
+        # temporary solution
+        sum_of_active_balance = max(1, sum_of_active_balance)
+        # print(sum_of_active_balance)
         base_reward = (
             effective_balance * (
                 BASE_REWARD_FACTOR /

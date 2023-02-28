@@ -10,7 +10,7 @@ ALPHA_DECREMENT_LIMIT = 0.3
 
 
 class Environment(gym.Env):
-    def __init__(self, num_validators=100, honest_ratio=0.5, initial_alpha=1, rounds=500, *args, **kwargs):
+    def __init__(self, num_validators=100, honest_ratio=0.5, initial_alpha=1, rounds=100, *args, **kwargs):
         """
         Initialize the environment.
 
@@ -23,6 +23,10 @@ class Environment(gym.Env):
         initial_alpha : float
             initial alpha
         """
+        self.num_validators = num_validators
+        self.honest_ratio = honest_ratio
+        self.initial_alpha = initial_alpha
+        self.rounds = rounds
         # assert num_validator is integer and greater than 0
         if not isinstance(num_validators, int) or num_validators <= 0:
             raise ValueError('num_validators should be a positive integer')
@@ -58,7 +62,7 @@ class Environment(gym.Env):
             "sum_of_effective_balance": gym.spaces.Box(low=0, high=np.inf, shape=(1,)),
             "honest_proportion": gym.spaces.Box(low=0, high=1, shape=(1,)),
         })
-
+        
         self.alpha = initial_alpha
         self.rounds = rounds
         self.counter = 0
@@ -80,6 +84,13 @@ class Environment(gym.Env):
             honest_proportion=self._get_honest_proportion()
         )
         return payload
+
+    def _get_info(self):
+        return {
+            'round': self.counter,
+            'alpha': self.alpha,
+            'honest_proportion': self._get_honest_proportion(),
+        }
 
     def _get_reward(self):
         return sum(
@@ -138,7 +149,23 @@ class Environment(gym.Env):
         observation : numpy array
             The initial observation of the environment.
         """
-        raise NotImplementedError
+        print('[INFO] Resetting the environment...')
+        self.validators = []
+        for i in range(self.num_validators):
+            if i < self.num_validators * self.honest_ratio:
+                self.validators.append(
+                    Validator(initial_strategy='honest', id=i))
+            else:
+                self.validators.append(
+                    Validator(initial_strategy='malicious', id=i))
+                
+        # shuffle the validators
+        random.shuffle(self.validators)
+        
+        self.alpha = self.initial_alpha
+        self.counter = 0
+
+        return self._get_obs(), self._get_info()
 
     def step(self, action):
         """
@@ -199,9 +226,8 @@ class Environment(gym.Env):
             done = True
         else:
             done = False
-        info = {}
 
-        return self._get_obs(), self._get_reward(), done, info
+        return self._get_obs(), self._get_reward(), done, self._get_info()
 
     def render(self, mode='human'):
         """
