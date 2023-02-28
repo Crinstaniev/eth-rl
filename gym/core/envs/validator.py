@@ -1,4 +1,5 @@
 import math
+import numpy as np
 
 
 BASE_REWARD_FACTOR = 64
@@ -6,6 +7,29 @@ BASE_REWARD_PER_EPOCH = 4
 
 
 class Validator(object):
+    """
+    Validator class
+
+    Parameters
+    ----------
+    initial_strategy : str
+        initial strategy of the validator
+    id : int
+        id of the validator
+
+    Attributes
+    ----------
+    id : int
+        id of the validator
+    strategy : str
+        strategy of the validator
+    balance : float
+        balance of the validator
+    effective_balance : float
+        effective balance of the validator
+    mutable : bool
+        whether the strategy of the validator is mutable
+    """
 
     def __init__(self, initial_strategy, id) -> None:
         """
@@ -23,6 +47,11 @@ class Validator(object):
         self.strategy = initial_strategy
         self.balance = 32
         self.effective_balance = 32
+
+        if self.strategy == 'honest':
+            self.mutable = True
+        else:
+            self.mutable = False
 
     def get_effective_balance(self):
         # limit: 32 Ether
@@ -137,4 +166,19 @@ class Validator(object):
             (1 / 32) * base_reward * honest_proportion
         )
         self.increase_balance(sync_committee_reward)
+        return
+
+    def update_strategy(self):
+        """
+        Update the strategy of the validator. If the validator is honest, the probability it became malicious is negatively related to its balance. If the validator is malicious and it is mutable, the probability it became honest is positively related to its balance.
+        """
+        if self.strategy == 'honest':
+            probability_malicious = min(1 - self.balance / 32, 0)
+            if np.random.random() < probability_malicious:
+                self.strategy = 'malicious'
+        else:
+            if self.mutable and self.strategy == 'malicious':
+                probability_honest = min(self.balance / 32, 1)
+                if np.random.random() < probability_honest:
+                    self.strategy = 'honest'
         return
