@@ -2,12 +2,25 @@ import random
 from pprint import pprint
 
 import gymnasium as gym
+import numpy as np
 from core.envs.validator import Validator
+
+ALPHA_INCREMENT_LIMIT = 0.3
+ALPHA_DECREMENT_LIMIT = 0.3
 
 
 class Environment(gym.Env):
     def __init__(self, num_validators=100, honest_ratio=0.5, *args, **kwargs):
+        """
+        Initialize the environment.
 
+        Parameters
+        ----------
+        num_validators : int
+            number of validators
+        honest_ratio : float
+            ratio of honest validators
+        """
         # assert num_validator is integer and greater than 0
         if not isinstance(num_validators, int) or num_validators <= 0:
             raise ValueError('num_validators should be a positive integer')
@@ -29,9 +42,48 @@ class Environment(gym.Env):
         # shuffle the validators
         random.shuffle(self.validators)
 
+        # define the action space
+        self.action_space = gym.spaces.Box(
+            low=-ALPHA_DECREMENT_LIMIT, high=ALPHA_INCREMENT_LIMIT, shape=(1,))
+
+        # define the observation space.
+        # Observation space is constructed by the following:
+        # - sum of balance
+        # - sum of effective balance
+        # - proportion of honest validators
+        self.observation_space = gym.spaces.Dict({
+            "sum_of_balance": gym.spaces.Box(low=0, high=np.inf, shape=(1,)),
+            "sum_of_effective_balance": gym.spaces.Box(low=0, high=np.inf, shape=(1,)),
+            "honest_proportion": gym.spaces.Box(low=0, high=1, shape=(1,)),
+        })
+
         super(Environment, self).__init__(*args, **kwargs)
 
+    def _get_obs(self):
+        """
+        Get the observation of the environment.
+
+        Returns
+        -------
+        payload : dict
+            observation of the environment
+        """
+        payload = dict(
+            sum_of_balance=self._get_sum_active_balance(),
+            sum_of_effective_balance=self._get_sum_active_balance(),
+            honest_proportion=self._get_honest_proportion()
+        )
+        return payload
+
     def get_validator_info(self, verbose=False):
+        """
+        Get the information of the validators.
+
+        Parameters
+        ----------
+        verbose : bool
+            whether to print the information
+        """
         payload = []
         for validator in self.validators:
             payload.append(dict(
@@ -45,8 +97,14 @@ class Environment(gym.Env):
         return payload
 
     def _get_sum_active_balance(self):
+        """
+        Get the sum of active balance of all validators.
 
-        # return the sum of everyone's balance
+        Returns
+        -------
+        sum : int
+            sum of active balance of all validators
+        """
         return sum(
             [validator.get_balance() for validator in self.validators]
         )
