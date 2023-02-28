@@ -10,7 +10,7 @@ ALPHA_DECREMENT_LIMIT = 0.3
 
 
 class Environment(gym.Env):
-    def __init__(self, num_validators=100, honest_ratio=0.5, *args, **kwargs):
+    def __init__(self, num_validators=100, honest_ratio=0.5, initial_alpha=1, rounds=500, *args, **kwargs):
         """
         Initialize the environment.
 
@@ -20,6 +20,8 @@ class Environment(gym.Env):
             number of validators
         honest_ratio : float
             ratio of honest validators
+        initial_alpha : float
+            initial alpha
         """
         # assert num_validator is integer and greater than 0
         if not isinstance(num_validators, int) or num_validators <= 0:
@@ -57,6 +59,10 @@ class Environment(gym.Env):
             "honest_proportion": gym.spaces.Box(low=0, high=1, shape=(1,)),
         })
 
+        self.alpha = initial_alpha
+        self.rounds = rounds
+        self.counter = 0
+
         super(Environment, self).__init__(*args, **kwargs)
 
     def _get_obs(self):
@@ -74,6 +80,14 @@ class Environment(gym.Env):
             honest_proportion=self._get_honest_proportion()
         )
         return payload
+
+    def _get_reward(self):
+        return sum(
+            [validator.get_balance()
+             for validator in self.validators if validator.get_strategy() == 'honest']
+        ) / sum(
+            [validator.get_balance() for validator in self.validators]
+        )
 
     def get_validator_info(self, verbose=False):
         """
@@ -129,6 +143,11 @@ class Environment(gym.Env):
     def step(self, action):
         """
         Take a step in the environment.
+        1. Select a validator as proposer (from honest validator)
+        2. Proposing
+        3. Voting
+        4. Update Strategy
+        4. Next Round
 
         Parameters
         ----------
@@ -146,7 +165,43 @@ class Environment(gym.Env):
         info : dict
             Additional information about the step.
         """
-        raise NotImplementedError
+        # update alpha
+        self.alpha += action[0]
+
+        # select proposer from honest validators
+        honest_validators = [
+            validator for validator in self.validators if validator.get_strategy() == 'honest']
+        proposer = random.choice(honest_validators)
+        proposer_id = proposer.id
+
+        # propose the block
+        # get_base_reward(self, sum_of_active_balance)
+        # propose(self, base_reward, honest_proportion)
+        base_reward = proposer.get_base_reward(
+            sum_of_active_balance=self._get_sum_active_balance())
+        proposer.propose(base_reward, self._get_honest_proportion())
+
+        # vote
+        # validators except proposer votes
+        # vote(self, base_reward, honest_proportion, alpha)
+        for validator in self.validators:
+            if validator.id != proposer_id:
+                validator.vote(
+                    base_reward=base_reward, honest_proportion=self._get_honest_proportion(), alpha=self.alpha)
+
+        # update strategy
+        for validator in self.validators:
+            validator.update_strategy()
+
+        # termination condition
+        self.counter += 1
+        if self.counter >= self.rounds:
+            done = True
+        else:
+            done = False
+        info = {}
+
+        return self._get_obs(), self._get_reward(), done, info
 
     def render(self, mode='human'):
         """

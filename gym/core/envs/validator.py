@@ -1,6 +1,6 @@
 import math
-import numpy as np
 
+import numpy as np
 
 BASE_REWARD_FACTOR = 64
 BASE_REWARD_PER_EPOCH = 4
@@ -54,17 +54,54 @@ class Validator(object):
             self.mutable = False
 
     def get_effective_balance(self):
+        """
+        Get the effective balance of the validator
+
+        Returns
+        -------
+        effective_balance : float
+            effective balance of the validator
+        """
         # limit: 32 Ether
         # Calculation: current balance decrease 0.5, effective balance decrease 1; Current balance increase 1.25, effective balance increase 1
         return self.effective_balance
 
     def get_balance(self):
+        """
+        Get the balance of the validator
+
+        Returns
+        -------
+        balance : float
+            balance of the validator
+        """
         return self.balance
 
     def get_strategy(self):
+        """
+        Get the strategy of the validator
+
+        Returns
+        -------
+        strategy : str
+            strategy of the validator
+        """
         return self.strategy
 
     def get_base_reward(self, sum_of_active_balance):
+        """
+        Get the base reward of the validator
+
+        Parameters
+        ----------
+        sum_of_active_balance : float
+            sum of effective balance of all active validators
+
+        Returns
+        -------
+        base_reward : float
+            base reward of the validator
+        """
         effective_balance = self.get_effective_balance()
         base_reward = (
             effective_balance * (
