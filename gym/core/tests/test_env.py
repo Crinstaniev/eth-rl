@@ -1,5 +1,8 @@
 from core.envs.rl_env import Environment
 from tqdm import tqdm
+# from stable_baselines.common.policies import MlpPolicy
+# from stable_baselines.common.vec_env import DummyVecEnv
+# from stable_baselines import PPO2
 
 
 def test_env_init():
@@ -48,10 +51,23 @@ def test_step_multiple_round():
     print('initial observation:', observation)
     print('initial info:', info)
 
-    for _ in range(1000):
+    for _ in range(150):
         # agent policy that uses the observation and info
         action = env.action_space.sample()
-        observation, reward, terminated, info = env.step(action)
-        print(info)
+        observation, _, terminated, info = env.step(action)
+        env.render()
         if terminated:
             observation, info = env.reset()
+
+
+# def test_dqn():
+#     env = Environment(num_validators=500, honest_ratio=0.7)
+
+#     model = PPO2(MlpPolicy, env, verbose=1)
+#     model.learn(total_timesteps=10000)
+
+#     obs, _ = env.reset()
+#     for i in range(1000):
+#         action, _states = model.predict(obs)
+#         obs, rewards, dones, info = env.step(action)
+#         env.render()

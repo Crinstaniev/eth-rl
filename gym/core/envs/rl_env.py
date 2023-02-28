@@ -62,7 +62,7 @@ class Environment(gym.Env):
             "sum_of_effective_balance": gym.spaces.Box(low=0, high=np.inf, shape=(1,)),
             "honest_proportion": gym.spaces.Box(low=0, high=1, shape=(1,)),
         })
-        
+
         self.alpha = initial_alpha
         self.rounds = rounds
         self.counter = 0
@@ -158,10 +158,10 @@ class Environment(gym.Env):
             else:
                 self.validators.append(
                     Validator(initial_strategy='malicious', id=i))
-                
+
         # shuffle the validators
         random.shuffle(self.validators)
-        
+
         self.alpha = self.initial_alpha
         self.counter = 0
 
@@ -238,7 +238,8 @@ class Environment(gym.Env):
         mode : str
             The mode to render the environment in.
         """
-        raise NotImplementedError
+        print(
+            f'[EPOCH {self.counter}] alpha: {self.alpha:.2f}, honest_proportion: {self._get_honest_proportion():.2f}, reward: {self._get_reward():.2f}, sum_of_balance: {self._get_sum_active_balance():.2f}, sum_of_effective_balance: {self._get_sum_active_balance():.2f}')
 
     def close(self):
         """
