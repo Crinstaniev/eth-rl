@@ -3,7 +3,9 @@ import math
 import numpy as np
 
 BASE_REWARD_FACTOR = 64
+# BASE_REWARD_FACTOR = 1
 BASE_REWARD_PER_EPOCH = 4
+STRATEGY_UPDATE_BALANCE_FACTOR = 32
 
 
 class Validator(object):
@@ -52,6 +54,7 @@ class Validator(object):
             self.mutable = True
         else:
             self.mutable = False
+            # self.mutable = True
 
     def get_effective_balance(self):
         """
@@ -64,7 +67,7 @@ class Validator(object):
         """
         # limit: 32 Ether
         # Calculation: current balance decrease 0.5, effective balance decrease 1; Current balance increase 1.25, effective balance increase 1
-        return self.effective_balance
+        return max(0, self.effective_balance)
 
     def get_balance(self):
         """
@@ -75,7 +78,7 @@ class Validator(object):
         balance : float
             balance of the validator
         """
-        return self.balance
+        return max(0, self.balance)
 
     def get_strategy(self):
         """
@@ -105,14 +108,14 @@ class Validator(object):
         effective_balance = self.get_effective_balance()
         # temporary solution
         sum_of_active_balance = max(1, sum_of_active_balance)
-        # print(sum_of_active_balance)
         base_reward = (
             effective_balance * (
                 BASE_REWARD_FACTOR /
                 (BASE_REWARD_PER_EPOCH * math.sqrt(sum_of_active_balance))
             )
         )
-        return base_reward
+        # print('base_reward: ', base_reward)
+        return max(0, base_reward)
 
     def increase_balance(self, amount):
         """
@@ -125,6 +128,13 @@ class Validator(object):
         """
         self.balance += amount
         self.effective_balance += amount / 1.25
+
+        if self.effective_balance >= 32:
+            self.effective_balance = 32
+
+        # print('balance: ', self.balance,
+        #       'effective_balance: ', self.effective_balance)
+
         return
 
     def decrease_balance(self, amount):
@@ -210,15 +220,31 @@ class Validator(object):
 
     def update_strategy(self):
         """
-        Update the strategy of the validator. If the validator is honest, the probability it became malicious is negatively related to its balance. If the validator is malicious and it is mutable, the probability it became honest is positively related to its balance.
+        Update the strategy of the validator. If the validator is honest, the probability it became malicious is negatively related to its balance. If the validator is malicious and it is mutable, the probability it became honest is positively related to its balance. The probability follows a logistic function.
         """
         if self.strategy == 'honest':
-            probability_malicious = min(1 - self.balance / 32, 0)
+            # with less balance, more possible to become malicious
+            probability_malicious = 1 / \
+                (1 + np.exp(self.balance - STRATEGY_UPDATE_BALANCE_FACTOR))
+            # print('probability_malicious', probability_malicious)
             if np.random.random() < probability_malicious:
                 self.strategy = 'malicious'
         else:
-            if self.mutable and self.strategy == 'malicious':
-                probability_honest = min(self.balance / 32, 1)
+            if self.mutable:
+                # more balance, more possible to become honest
+                probability_honest = 1 / \
+                    (1 + np.exp(STRATEGY_UPDATE_BALANCE_FACTOR - self.balance))
+                # print('probability_honest', probability_honest)
                 if np.random.random() < probability_honest:
                     self.strategy = 'honest'
         return
+        # if self.strategy == 'honest':
+        #         probability_malicious = max(1 - self.balance / 32, 0)
+        #         if np.random.random() < probability_malicious:
+        #             self.strategy = 'malicious'
+        # else:
+        #     if self.mutable and self.strategy == 'malicious':
+        #         probability_honest = min(self.balance / 32, 1)
+        #         if np.random.random() < probability_honest:
+        #             self.strategy = 'honest'
+        # return

@@ -1,7 +1,8 @@
 import random
 from pprint import pprint
 
-import gymnasium as gym
+# import gymnasium as gym
+import gym
 import numpy as np
 from core.envs.validator import Validator
 
@@ -10,7 +11,7 @@ ALPHA_DECREMENT_LIMIT = 0.3
 
 
 class Environment(gym.Env):
-    def __init__(self, num_validators=100, honest_ratio=0.5, initial_alpha=1, rounds=100, *args, **kwargs):
+    def __init__(self, num_validators=512, honest_ratio=0.5, initial_alpha=1, rounds=1000, *args, **kwargs):
         """
         Initialize the environment.
 
@@ -24,6 +25,7 @@ class Environment(gym.Env):
             initial alpha
         """
         self.num_validators = num_validators
+        self.last_honest_proportion = honest_ratio
         self.honest_ratio = honest_ratio
         self.initial_alpha = initial_alpha
         self.rounds = rounds
@@ -69,6 +71,17 @@ class Environment(gym.Env):
 
         super(Environment, self).__init__(*args, **kwargs)
 
+    def _get_sum_of_effective_balance(self):
+        """
+        Get the sum of effective balance of all validators.
+
+        Returns
+        -------
+        sum_of_effective_balance : float
+            sum of effective balance of all validators
+        """
+        return sum([validator.get_effective_balance() for validator in self.validators])
+
     def _get_obs(self):
         """
         Get the observation of the environment.
@@ -79,10 +92,16 @@ class Environment(gym.Env):
             observation of the environment
         """
         payload = dict(
-            sum_of_balance=self._get_sum_active_balance(),
-            sum_of_effective_balance=self._get_sum_active_balance(),
-            honest_proportion=self._get_honest_proportion()
+            sum_of_balance=np.array(
+                [self._get_sum_active_balance()], dtype=np.float32),
+            sum_of_effective_balance=np.array([
+                self._get_sum_of_effective_balance()], dtype=np.float32),
+            honest_proportion=np.array(
+                [self._get_honest_proportion()], dtype=np.float32)
         )
+        # print(payload)
+        # for key, subspace in self.observation_space.spaces.items():
+        #     print(key, subspace)
         return payload
 
     def _get_info(self):
@@ -93,12 +112,13 @@ class Environment(gym.Env):
         }
 
     def _get_reward(self):
-        return sum(
-            [validator.get_balance()
-             for validator in self.validators if validator.get_strategy() == 'honest']
-        ) / sum(
-            [validator.get_balance() for validator in self.validators]
-        )
+        """
+        Get the reward of the environment. The reward is positive if the honest validators proportion increased, and negative if it decreased.
+        """
+        honest_proportion = self._get_honest_proportion()
+        reward = (honest_proportion - self.last_honest_proportion) * 100
+        self.last_honest_proportion = honest_proportion
+        return reward
 
     def get_validator_info(self, verbose=False):
         """
@@ -130,9 +150,9 @@ class Environment(gym.Env):
         sum : int
             sum of active balance of all validators
         """
-        return sum(
+        return max(0, sum(
             [validator.get_balance() for validator in self.validators]
-        )
+        ))
 
     def _get_honest_proportion(self):
         # return the proportion of honest validators
@@ -140,7 +160,7 @@ class Environment(gym.Env):
             [validator.get_strategy() == 'honest' for validator in self.validators]
         ) / len(self.validators)
 
-    def reset(self):
+    def reset(self, seed=None, *args, **kwargs):
         """
         Reset the environment and return an initial observation.
 
@@ -150,6 +170,10 @@ class Environment(gym.Env):
             The initial observation of the environment.
         """
         print('[INFO] Resetting the environment...')
+
+        if seed == None:
+            seed = 42
+
         self.validators = []
         for i in range(self.num_validators):
             if i < self.num_validators * self.honest_ratio:
@@ -158,12 +182,14 @@ class Environment(gym.Env):
             else:
                 self.validators.append(
                     Validator(initial_strategy='malicious', id=i))
-
         # shuffle the validators
         random.shuffle(self.validators)
 
         self.alpha = self.initial_alpha
         self.counter = 0
+        self.last_honest_proportion = self.honest_ratio
+
+        super().reset(seed=seed)
 
         return self._get_obs(), self._get_info()
 
@@ -198,6 +224,9 @@ class Environment(gym.Env):
         # select proposer from honest validators
         honest_validators = [
             validator for validator in self.validators if validator.get_strategy() == 'honest']
+        if len(honest_validators) == 0:
+            return self._get_obs(), self._get_reward(), True, False, self._get_info()
+
         proposer = random.choice(honest_validators)
         proposer_id = proposer.id
 
@@ -220,6 +249,9 @@ class Environment(gym.Env):
         for validator in self.validators:
             validator.update_strategy()
 
+        # temporary solution
+        trunctated = False
+
         # termination condition
         self.counter += 1
         if self.counter >= self.rounds:
@@ -227,7 +259,9 @@ class Environment(gym.Env):
         else:
             done = False
 
-        return self._get_obs(), self._get_reward(), done, self._get_info()
+        self.render()
+
+        return self._get_obs(), self._get_reward(), done, trunctated, self._get_info()
 
     def render(self, mode='human'):
         """
@@ -239,7 +273,7 @@ class Environment(gym.Env):
             The mode to render the environment in.
         """
         print(
-            f'[EPOCH {self.counter}] alpha: {self.alpha:.2f}, honest_proportion: {self._get_honest_proportion():.2f}, reward: {self._get_reward():.2f}, sum_of_balance: {self._get_sum_active_balance():.2f}, sum_of_effective_balance: {self._get_sum_active_balance():.2f}')
+            f'[EPOCH {self.counter}] alpha: {self.alpha:.2f}, honest_proportion: {self._get_honest_proportion():.2f}, reward: {self._get_reward():.2f}, sum_of_balance: {self._get_sum_active_balance():.2f}, sum_of_effective_balance: {self._get_sum_of_effective_balance():.2f}')
 
     def close(self):
         """
