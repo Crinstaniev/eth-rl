@@ -6,8 +6,8 @@ import gym
 import numpy as np
 from core.envs.validator import Validator
 
-ALPHA_INCREMENT_LIMIT = 0.3
-ALPHA_DECREMENT_LIMIT = 0.3
+ALPHA_MIN = 0
+ALPHA_MAX = 4
 
 
 class Environment(gym.Env):
@@ -52,7 +52,7 @@ class Environment(gym.Env):
 
         # define the action space
         self.action_space = gym.spaces.Box(
-            low=-ALPHA_DECREMENT_LIMIT, high=ALPHA_INCREMENT_LIMIT, shape=(1,))
+            low=ALPHA_MIN, high=ALPHA_MAX, shape=(1,))
 
         # define the observation space.
         # Observation space is constructed by the following:
@@ -118,6 +118,10 @@ class Environment(gym.Env):
         honest_proportion = self._get_honest_proportion()
         reward = (honest_proportion - self.last_honest_proportion) * 100
         self.last_honest_proportion = honest_proportion
+
+        reward = reward * 10 * self._get_honest_proportion() + self._get_honest_proportion() - \
+            self.honest_ratio - 0.01
+
         return reward
 
     def get_validator_info(self, verbose=False):
@@ -189,9 +193,13 @@ class Environment(gym.Env):
         self.counter = 0
         self.last_honest_proportion = self.honest_ratio
 
-        super().reset(seed=seed)
+        # super().reset(seed=seed)
+        self.seed = seed
 
-        return self._get_obs(), self._get_info()
+        print(self._get_obs())
+
+        # return dict(self._get_obs()), self._get_info()
+        return self._get_obs()
 
     def step(self, action):
         """
@@ -219,7 +227,7 @@ class Environment(gym.Env):
             Additional information about the step.
         """
         # update alpha
-        self.alpha += action[0]
+        self.alpha = action[0]
 
         # select proposer from honest validators
         honest_validators = [
@@ -249,9 +257,6 @@ class Environment(gym.Env):
         for validator in self.validators:
             validator.update_strategy()
 
-        # temporary solution
-        trunctated = False
-
         # termination condition
         self.counter += 1
         if self.counter >= self.rounds:
@@ -261,7 +266,7 @@ class Environment(gym.Env):
 
         self.render()
 
-        return self._get_obs(), self._get_reward(), done, trunctated, self._get_info()
+        return self._get_obs(), self._get_reward(), done, self._get_info()
 
     def render(self, mode='human'):
         """

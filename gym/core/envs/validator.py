@@ -1,6 +1,8 @@
+import collections
 import math
 
 import numpy as np
+from core.utils.helper_functions import deprecated
 
 BASE_REWARD_FACTOR = 64
 # BASE_REWARD_FACTOR = 1
@@ -53,8 +55,12 @@ class Validator(object):
         if self.strategy == 'honest':
             self.mutable = True
         else:
-            self.mutable = False
-            # self.mutable = True
+            # self.mutable = False
+            self.mutable = True
+
+        # initialize strategy update-specific variables
+        self.balance_history = collections.deque([self.balance], maxlen=10)
+        self.balance_decreasing_count = 0
 
     def get_effective_balance(self):
         """
@@ -218,7 +224,8 @@ class Validator(object):
         self.increase_balance(sync_committee_reward)
         return
 
-    def update_strategy(self):
+    @deprecated
+    def update_strategy_old(self):
         """
         Update the strategy of the validator. If the validator is honest, the probability it became malicious is negatively related to its balance. If the validator is malicious and it is mutable, the probability it became honest is positively related to its balance. The probability follows a logistic function.
         """
@@ -238,13 +245,28 @@ class Validator(object):
                 if np.random.random() < probability_honest:
                     self.strategy = 'honest'
         return
-        # if self.strategy == 'honest':
-        #         probability_malicious = max(1 - self.balance / 32, 0)
-        #         if np.random.random() < probability_malicious:
-        #             self.strategy = 'malicious'
-        # else:
-        #     if self.mutable and self.strategy == 'malicious':
-        #         probability_honest = min(self.balance / 32, 1)
-        #         if np.random.random() < probability_honest:
-        #             self.strategy = 'honest'
-        # return
+
+    def update_strategy(self):
+        """
+        When a honest validator founds its rewards decreasing for a long time, it will become malicious. When a malicious validator founds its rewards decreasing for a long time, it will also become honest.
+        """
+        if self.strategy == 'honest':
+            if self.balance < self.balance_history[-1]:
+                self.balance_decreasing_count += 1
+            else:
+                self.balance_decreasing_count = 0
+            if self.balance_decreasing_count >= 5:
+                self.strategy = 'malicious'
+                # print('honest->malicious')
+        else:
+            if self.mutable:
+                if self.balance < self.balance_history[-1]:
+                    self.balance_decreasing_count += 1
+                else:
+                    self.balance_decreasing_count = 0
+                if self.balance_decreasing_count >= 5:
+                    self.strategy = 'honest'
+                    # print('malicious->honest')
+
+        self.balance_history.append(self.balance)
+        return
