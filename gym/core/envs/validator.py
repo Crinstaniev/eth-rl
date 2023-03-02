@@ -138,9 +138,6 @@ class Validator(object):
         if self.effective_balance >= 32:
             self.effective_balance = 32
 
-        # print('balance: ', self.balance,
-        #       'effective_balance: ', self.effective_balance)
-
         return
 
     def decrease_balance(self, amount):
