@@ -23,7 +23,7 @@ test:
 	pytest -s -v
 
 # Commit changes and update requirements.txt
-commit: requirements
+commit: generate-requirements
 	git add .
 	git commit -a 
 

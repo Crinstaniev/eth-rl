@@ -137,6 +137,8 @@ class Validator(object):
         if amount >= 1.25:
             self.effective_balance += math.floor(amount / 1.25)
 
+        self.effective_balance = min(32, self.effective_balance)
+        
         return
 
     def decrease_balance(self, amount):
@@ -151,6 +153,9 @@ class Validator(object):
         self.balance -= amount
         if amount >= 0.5:
             self.effective_balance -= math.floor(amount / 0.5)
+        
+        self.effective_balance = max(0, self.effective_balance)
+        
         return
 
     def propose(self, base_reward, honest_proportion):
@@ -172,8 +177,8 @@ class Validator(object):
                 (1 / 8) * base_reward * honest_proportion
             )
             self.increase_balance(proposing_reward)
-        self._sync_committee_reward(
-            base_reward=base_reward, honest_proportion=honest_proportion)
+        # self._sync_committee_reward(
+        #     base_reward=base_reward, honest_proportion=honest_proportion)
         return
 
     def vote(self, base_reward, honest_proportion, alpha):
@@ -200,8 +205,8 @@ class Validator(object):
         else:
             # get penalized
             self.decrease_balance(alpha * voting_reward)
-        self._sync_committee_reward(
-            base_reward=base_reward, honest_proportion=honest_proportion)
+        # self._sync_committee_reward(
+        #     base_reward=base_reward, honest_proportion=honest_proportion)
         return
 
     def _sync_committee_reward(self, base_reward, honest_proportion):
