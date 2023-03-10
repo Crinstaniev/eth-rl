@@ -133,10 +133,9 @@ class Validator(object):
             amount to increase
         """
         self.balance += amount
-        self.effective_balance += amount / 1.25
-
-        if self.effective_balance >= 32:
-            self.effective_balance = 32
+        # 1 effective balance increase per 1.25 balance increase if balance increament larger than 1.25
+        if amount >= 1.25:
+            self.effective_balance += math.floor(amount / 1.25)
 
         return
 
@@ -150,7 +149,8 @@ class Validator(object):
             amount to decrease
         """
         self.balance -= amount
-        self.effective_balance -= amount / 0.5
+        if amount >= 0.5:
+            self.effective_balance -= math.floor(amount / 0.5)
         return
 
     def propose(self, base_reward, honest_proportion):
@@ -243,10 +243,12 @@ class Validator(object):
                     self.strategy = 'honest'
         return
 
-    def update_strategy(self):
+    @deprecated
+    def update_strategy_old(self):
         """
         When a honest validator founds its rewards decreasing for a long time, it will become malicious. When a malicious validator founds its rewards decreasing for a long time, it will also become honest.
         """
+        # Next: linear->softmax
         if self.strategy == 'honest':
             if self.balance < self.balance_history[-1]:
                 self.balance_decreasing_count += 1
@@ -266,4 +268,11 @@ class Validator(object):
                     # print('malicious->honest')
 
         self.balance_history.append(self.balance)
+        return
+
+    def update_strategy(self, new_strategy):
+        """
+        Revolutional strategy to update validator behavior.
+        """
+        self.strategy = new_strategy
         return

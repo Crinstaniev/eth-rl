@@ -228,6 +228,8 @@ class Environment(gym.Env):
         """
         # update alpha
         self.alpha = action[0]
+        
+        self.counter += 1
 
         # select proposer from honest validators
         honest_validators = [
@@ -253,12 +255,36 @@ class Environment(gym.Env):
                 validator.vote(
                     base_reward=base_reward, honest_proportion=self._get_honest_proportion(), alpha=self.alpha)
 
-        # update strategy
-        for validator in self.validators:
-            validator.update_strategy()
+        # update strategy. The targeted honest proportion is (total balance of honest validators) / (total balance of all validators)
+        original_honest_proportion = self._get_honest_proportion()
+        targeted_honest_proportion = self._get_honest_total_balance() / \
+            self._get_sum_active_balance()
+
+        diff_proportion = targeted_honest_proportion - original_honest_proportion
+
+        # if diff_proportion > 0, then the honest proportion is too low, so we need to increase the honest proportion by converting some malicious validators to honest validators. We ramdomly select malicious validators to convert to honest validators to match the targeted honest proportion.
+        if diff_proportion > 0:
+            malicious_validators = [
+                validator for validator in self.validators if validator.get_strategy() == 'malicious']
+            if len(malicious_validators) == 0:
+                return self._get_obs(), self._get_reward(), True, False, self._get_info()
+
+            random.shuffle(malicious_validators)
+            for i in range(int(len(malicious_validators) * diff_proportion)):
+                malicious_validators[i].update_strategy('honest')
+
+        # if diff_proportion < 0, then the honest proportion is too high, so we need to decrease the honest proportion by converting some honest validators to malicious validators. We ramdomly select honest validators to convert to malicious validators to match the targeted honest proportion.
+        if diff_proportion < 0:
+            honest_validators = [
+                validator for validator in self.validators if validator.get_strategy() == 'honest']
+            if len(honest_validators) == 0:
+                return self._get_obs(), self._get_reward(), True, False, self._get_info()
+
+            random.shuffle(honest_validators)
+            for i in range(int(len(honest_validators) * -diff_proportion)):
+                honest_validators[i].update_strategy('malicious')
 
         # termination condition
-        self.counter += 1
         if self.counter >= self.rounds:
             done = True
         else:
@@ -267,6 +293,9 @@ class Environment(gym.Env):
         self.render()
 
         return self._get_obs(), self._get_reward(), done, self._get_info()
+
+    def _get_honest_total_balance(self):
+        return sum([validator.get_balance() for validator in self.validators if validator.get_strategy() == 'honest'])
 
     def render(self, mode='human'):
         """

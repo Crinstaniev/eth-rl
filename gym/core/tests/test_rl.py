@@ -16,7 +16,7 @@ EPOCHS = 30
 
 def test_a2c():
     env = Environment(num_validators=256,
-                      honest_ratio=0.5, rounds=32)
+                      honest_ratio=0.5, rounds=64)
 
     # Create log dir
     log_dir = "tmp/"
